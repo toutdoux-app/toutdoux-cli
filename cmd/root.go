@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 IN2P3 Computing Centre, IN2P3, CNRS
+Copyright © 2022 Remi Ferrand
 
 Contributor(s): Remi Ferrand <riton.github_at_gmail(dot)com>, 2022
 
@@ -33,14 +33,21 @@ knowledge of the CeCILL-B license and that you accept its terms.
 package cmd
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	apiV1 "github.com/toutdoux-app/toutdoux-cli/api/v1"
+	"github.com/toutdoux-app/toutdoux-cli/config"
 )
 
 var cfgFile string
+var cfg config.Config
+var apiClient apiV1.Client
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -54,7 +61,25 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	//Run: func(cmd *cobra.Command, args []string) {},
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		client, err := apiV1.NewClientWithOptions(apiV1.ClientOptions{
+			Endpoint: cfg.API.Endpoint,
+			Username: cfg.API.Username,
+			Password: cfg.API.Password,
+		})
+		if err != nil {
+			return errors.Wrap(err, "creating api client")
+		}
+
+		if err := client.Initialize(); err != nil {
+			return errors.Wrap(err, "initializing api client")
+		}
+
+		apiClient = client
+
+		return nil
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -73,15 +98,17 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.toutdoux-cli.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.toutdoux/cli.yaml)")
+	rootCmd.PersistentFlags().BoolP("debug", "d", false, "enable debug mode")
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	debug, _ := rootCmd.Flags().GetBool("debug")
+	if debug {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
@@ -90,16 +117,25 @@ func initConfig() {
 		home, err := os.UserHomeDir()
 		cobra.CheckErr(err)
 
-		// Search config in home directory with name ".toutdoux-cli" (without extension).
-		viper.AddConfigPath(home)
+		// Search config in ~/.toutdoux/ with name "cli" (without extension).
+		viper.AddConfigPath(filepath.Join(home, ".toutdoux"))
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".toutdoux-cli")
+		viper.SetConfigName("cli")
 	}
 
+	viper.SetEnvPrefix("toutdoux")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+		logrus.Debugf("Using config file %s", viper.ConfigFileUsed())
+	}
+
+	if err := viper.Unmarshal(&cfg); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"error":       err,
+			"config_file": viper.ConfigFileUsed(),
+		}).Fatal("fail to unmarshal configuration")
 	}
 }
