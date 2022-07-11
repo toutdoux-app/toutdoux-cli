@@ -24,6 +24,8 @@ const (
 type Client interface {
 	Initialize() error
 	GetTodoLists(opts GetTodoListsOptions) (TodoLists, error)
+	GetTodoListByID(todoListID string, opts GetTodoListByIDOptions) (TodoList, error)
+	GetTodoListEntriesByID(todoListID string, opts GetTodoListEntriesByIDOptions) (TodoEntries, error)
 }
 
 type ClientOptions struct {

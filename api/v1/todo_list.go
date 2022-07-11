@@ -25,6 +25,21 @@ type TodoList struct {
 
 type TodoLists []TodoList
 
+var (
+	ErrNoSuchElement = fmt.Errorf("no such element")
+)
+
+func (t TodoLists) GetByName(name string) (TodoList, error) {
+	for _, todoList := range t {
+		if todoList.Name == name {
+			tdL := todoList
+			return tdL, nil
+		}
+	}
+
+	return TodoList{}, ErrNoSuchElement
+}
+
 type GetTodoListsOptions struct{}
 
 const (
@@ -54,4 +69,35 @@ func (c *client) GetTodoLists(opts GetTodoListsOptions) (TodoLists, error) {
 	}
 
 	return todoLists, nil
+}
+
+const (
+	APIGetTodoListEndpoint = "/list/%s"
+)
+
+type GetTodoListByIDOptions struct{}
+
+func (c *client) GetTodoListByID(id string, opts GetTodoListByIDOptions) (TodoList, error) {
+	var todoList TodoList
+
+	listListsReq, err := http.NewRequest(http.MethodGet, c.apiURLPathJoin(fmt.Sprintf(APIGetTodoListEndpoint, id)), nil)
+	if err != nil {
+		return todoList, errors.Wrap(err, "creating http request")
+	}
+
+	resp, err := c.httpClient.Do(listListsReq)
+	if err != nil {
+		return todoList, errors.Wrap(err, "performing HTTP request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return todoList, fmt.Errorf("unexpected HTTP status code %d", resp.StatusCode)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&todoList); err != nil {
+		return todoList, errors.Wrap(err, "decoding API response")
+	}
+
+	return todoList, nil
 }

@@ -40,8 +40,8 @@ import (
 )
 
 // todoListCmd represents the todoList command
-var todoListListCmd = &cobra.Command{
-	Use:   "list",
+var todoListListEntriesCmd = &cobra.Command{
+	Use:   "list-entries",
 	Short: "A brief description of your command",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
@@ -49,26 +49,21 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	RunE: todoListListRunE,
+	RunE: todoListListEntriesRunE,
+	Args: cobra.ExactArgs(1),
 }
 
 func init() {
-	todoListCmd.AddCommand(todoListListCmd)
+	todoListCmd.AddCommand(todoListListEntriesCmd)
 }
 
-func todoListListRunE(cmd *cobra.Command, args []string) error {
-	lists, err := apiClient.GetTodoLists(apiV1.GetTodoListsOptions{})
+func todoListListEntriesRunE(cmd *cobra.Command, args []string) error {
+	lists, err := apiClient.GetTodoListEntriesByID(args[0], apiV1.GetTodoListEntriesByIDOptions{})
 	if err != nil {
 		return err
 	}
 
-	for _, list := range lists {
-		fmt.Printf("* %s\n", list.Name)
-		todoNotDone, _ := list.TodoEntries.SplitByDoneStatus()
-		if len(todoNotDone) > 0 {
-			fmt.Printf("  -> %d todo to do\n", len(todoNotDone))
-		}
-	}
+	fmt.Printf("lists = %+v\n", lists)
 
 	return nil
 }
